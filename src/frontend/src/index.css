@@ -5,6 +5,174 @@
 @layer base {
   body {
     @apply text-slate-900 antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+}
+
+@layer components {
+  .glass-effect {
+    @apply backdrop-blur-xl bg-white/90 border border-white/30 shadow-xl;
+  }
+
+  .input-modern {
+    @apply w-full px-4 py-2.5 border-2 border-slate-300 rounded-xl
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+           transition-all duration-300 bg-white text-slate-900 shadow-sm
+           hover:border-slate-400;
+  }
+
+  .input-modern::placeholder {
+    @apply text-slate-400;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 
+           text-white font-semibold rounded-xl shadow-lg
+           hover:from-blue-700 hover:to-blue-800 hover:shadow-xl
+           active:scale-95 transition-all duration-300
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 border-2 border-blue-500 text-blue-600 font-semibold rounded-xl
+           hover:bg-blue-50 active:bg-blue-100 shadow-md
+           transition-all duration-300;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100
+           rounded-lg transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border-2 border-slate-200 shadow-md 
+           hover:shadow-lg hover:border-slate-300 transition-all duration-300;
+  }
+
+  .card-elevated {
+    @apply bg-white rounded-xl border-2 border-slate-100
+           shadow-xl hover:shadow-2xl transition-all duration-300
+           hover:border-blue-200;
+  }
+
+  .text-label {
+    @apply block text-sm font-semibold text-slate-700 mb-2.5;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm;
+  }
+
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-800 border border-emerald-300;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-800 border border-amber-300;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 text-red-800 border border-red-300;
+  }
+
+  .badge-info {
+    @apply bg-blue-100 text-blue-800 border border-blue-300;
+  }
+
+  .fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .slide-in-right {
+    animation: slideInRight 0.4s ease-out;
+  }
+
+  .slide-in-left {
+    animation: slideInLeft 0.4s ease-out;
+  }
+
+  .scale-in {
+    animation: scaleIn 0.4s ease-out;
+  }
+
+  .bounce-in {
+    animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }

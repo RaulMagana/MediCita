@@ -17,7 +17,7 @@ const rateLimit    = require('express-rate-limit');
 const routes       = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const logger       = require('./utils/logger');
-const { pool }     = require('./config/database'); // mysql2/promise pool
+const pool = require('./config/database'); // PostgreSQL pool  // pg: verifica conectividad nativa
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -76,7 +76,7 @@ app.use(errorHandler);
 async function start() {
   try {
     // Verificar conectividad con la base de datos
-    await pool.query('SELECT 1');  // mysql2: misma sintaxis
+    await pool.query('SELECT 1');  // pg: verifica conectividad nativa  // mysql2: misma sintaxis
     logger.info('Conexión a PostgreSQL establecida');
 
     app.listen(PORT, () => {
@@ -84,9 +84,11 @@ async function start() {
       logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
     });
   } catch (err) {
-    logger.error('Error al arrancar el servidor', { error: err.message });
-    process.exit(1);
-  }
+  console.error("====== ¡CRASH DE ARRANQUE DETECTADO! ======");
+  console.error(err); // Esto imprimirá el error completo con su stack trace
+  console.error("==========================================");
+  process.exit(1);
+}
 }
 
 start();

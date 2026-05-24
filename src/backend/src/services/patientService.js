@@ -1,6 +1,3 @@
-/**
- * services/patientService.js — adaptado a MySQL (placeholders ?)
- */
 'use strict';
 
 const db = require('../config/database');
@@ -11,7 +8,7 @@ async function listPatients() {
             u.username, u.created_at
      FROM patients p
      JOIN users u ON u.id = p.user_id
-     WHERE u.is_active = 1
+     WHERE u.is_active = true
      ORDER BY p.full_name`
   );
   return rows;
@@ -23,14 +20,14 @@ async function getPatientById(patientId) {
             p.sex, p.created_at, u.username
      FROM patients p
      JOIN users u ON u.id = p.user_id
-     WHERE p.id = ?`,
+     WHERE p.id = $1`,
     [patientId]
   );
   return rows[0] || null;
 }
 
 async function getPatientByUserId(userId) {
-  const { rows } = await db.query('SELECT * FROM patients WHERE user_id = ?', [userId]);
+  const { rows } = await db.query('SELECT * FROM patients WHERE user_id = $1', [userId]);
   return rows[0] || null;
 }
 
@@ -38,12 +35,12 @@ async function updatePatient(patientId, updates) {
   const { fullName, address, phone, birthDate, sex } = updates;
   await db.query(
     `UPDATE patients
-     SET full_name  = COALESCE(?, full_name),
-         address    = COALESCE(?, address),
-         phone      = COALESCE(?, phone),
-         birth_date = COALESCE(?, birth_date),
-         sex        = COALESCE(?, sex)
-     WHERE id = ?`,
+     SET full_name  = COALESCE($1, full_name),
+         address    = COALESCE($2, address),
+         phone      = COALESCE($3, phone),
+         birth_date = COALESCE($4, birth_date),
+         sex        = COALESCE($5, sex)
+     WHERE id = $6`,
     [fullName, address, phone, birthDate, sex, patientId]
   );
   return getPatientById(patientId);
@@ -51,8 +48,8 @@ async function updatePatient(patientId, updates) {
 
 async function deactivatePatient(patientId) {
   await db.query(
-    `UPDATE users SET is_active = 0
-     WHERE id = (SELECT user_id FROM patients WHERE id = ?)`,
+    `UPDATE users SET is_active = false
+     WHERE id = (SELECT user_id FROM patients WHERE id = $1)`,
     [patientId]
   );
 }

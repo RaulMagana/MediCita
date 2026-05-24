@@ -1,6 +1,6 @@
 /**
  * pages/PatientsPage.jsx
- * Lista y gestión de pacientes (solo médico) con diseño moderno.
+ * Lista y gestión de pacientes (solo médico) — con edición de datos.
  */
 
 import { useState, useEffect } from 'react';
@@ -9,11 +9,21 @@ import Layout from '../components/shared/Layout';
 import { patientApi } from '../services/api';
 import { Icons } from '../components/shared/Icons';
 
+const SEX_LABEL = { M: 'Masculino', F: 'Femenino', O: 'Otro' };
+
 export default function PatientsPage() {
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
-  const [msg, setMsg]           = useState('');
+  const [patients, setPatients]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
+  const [msg, setMsg]             = useState({ text: '', ok: true });
+
+  // ── Estado del modal de edición
+  const [editTarget, setEditTarget] = useState(null); // paciente en edición
+  const [editForm, setEditForm]     = useState({});
+  const [saving, setSaving]         = useState(false);
+  const [editErrors, setEditErrors] = useState({});
+
+  const notify = (text, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg({ text: '' }), 3500); };
 
   const load = () => {
     patientApi.list()
@@ -30,31 +40,74 @@ export default function PatientsPage() {
     (p.phone && p.phone.includes(search))
   );
 
-  const handleDeactivate = async (id, name) => {
-    if (!window.confirm(`¿Desactivar la cuenta de ${name}?`)) return;
+  // ── Abrir modal de edición
+  const openEdit = (p) => {
+    setEditTarget(p);
+    setEditForm({
+      fullName:  p.full_name  || '',
+      address:   p.address    || '',
+      phone:     p.phone      || '',
+      birthDate: p.birth_date ? p.birth_date.slice(0, 10) : '',
+      sex:       p.sex        || '',
+    });
+    setEditErrors({});
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(prev => ({ ...prev, [name]: value }));
+    if (editErrors[name]) setEditErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateEdit = () => {
+    const errs = {};
+    if (!editForm.fullName.trim()) errs.fullName = 'El nombre es requerido';
+    if (!editForm.phone.trim())    errs.phone    = 'El teléfono es requerido';
+    if (!editForm.birthDate)       errs.birthDate = 'La fecha de nacimiento es requerida';
+    if (!editForm.sex)             errs.sex      = 'El sexo es requerido';
+    if (!editForm.address.trim())  errs.address  = 'La dirección es requerida';
+    return errs;
+  };
+
+  const handleEditSave = async (e) => {
+    e.preventDefault();
+    const errs = validateEdit();
+    if (Object.keys(errs).length > 0) { setEditErrors(errs); return; }
+
+    setSaving(true);
     try {
-      await patientApi.deactivate(id);
-      setMsg(`${name} ha sido desactivado`);
+      await patientApi.update(editTarget.id, editForm);
+      notify('✓ Datos actualizados correctamente');
+      setEditTarget(null);
       load();
-      setTimeout(() => setMsg(''), 3000);
-    } catch { 
-      setMsg('Error al desactivar');
-      setTimeout(() => setMsg(''), 3000);
+    } catch (err) {
+      notify(err.response?.data?.error || 'Error al guardar', false);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const sexLabel = { M: 'Masculino', F: 'Femenino', O: 'Otro' };
+  // ── Desactivar paciente
+  const handleDeactivate = async (id, name) => {
+    if (!window.confirm(`¿Desactivar la cuenta de ${name}? El paciente ya no podrá iniciar sesión.`)) return;
+    try {
+      await patientApi.deactivate(id);
+      notify(`${name} ha sido desactivado`);
+      load();
+    } catch {
+      notify('Error al desactivar', false);
+    }
+  };
 
   return (
     <Layout title="Gestión de Pacientes">
       <div className="space-y-6 max-w-6xl">
-        {/* Header con búsqueda */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h2 className="text-lg text-slate-500">Total de pacientes</h2>
             <p className="text-3xl font-bold text-slate-900 mt-1">{filtered.length}</p>
           </div>
-
           <div className="relative md:w-80">
             <Icons.Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
             <input
@@ -67,14 +120,17 @@ export default function PatientsPage() {
           </div>
         </div>
 
-        {/* Mensajes */}
-        {msg && (
-          <div className="fade-in card p-4 bg-emerald-50 border-l-4 border-l-emerald-500 flex items-center justify-between">
+        {/* Mensaje */}
+        {msg.text && (
+          <div className={`fade-in card p-4 border-l-4 flex items-center justify-between
+            ${msg.ok ? 'bg-emerald-50 border-l-emerald-500' : 'bg-red-50 border-l-red-500'}`}>
             <div className="flex items-center gap-3">
-              <Icons.Check className="w-5 h-5 text-emerald-600" />
-              <p className="text-emerald-900 font-medium">{msg}</p>
+              {msg.ok
+                ? <Icons.Check className="w-5 h-5 text-emerald-600" />
+                : <Icons.AlertCircle className="w-5 h-5 text-red-500" />}
+              <p className={`font-medium ${msg.ok ? 'text-emerald-900' : 'text-red-900'}`}>{msg.text}</p>
             </div>
-            <button onClick={() => setMsg('')} className="btn-ghost">
+            <button onClick={() => setMsg({ text: '' })} className="btn-ghost">
               <Icons.X className="w-4 h-4" />
             </button>
           </div>
@@ -100,51 +156,53 @@ export default function PatientsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filtered.map((p, idx) => (
-                    <tr 
-                      key={p.id} 
+                    <tr
+                      key={p.id}
                       className="hover:bg-slate-50 transition-colors duration-200 slide-in-right"
                       style={{ animationDelay: `${idx * 30}ms` }}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600
                                           flex items-center justify-center text-white font-bold text-sm">
                             {p.full_name?.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900">{p.full_name}</p>
-                            <p className="text-xs text-slate-500">ID: {p.id}</p>
+                            <p className="text-xs text-slate-500">@{p.username}</p>
                           </div>
                         </div>
                       </td>
+                      <td className="px-6 py-4 text-slate-600 text-sm">{p.email}</td>
+                      <td className="px-6 py-4 text-slate-600 text-sm">{p.phone || '—'}</td>
                       <td className="px-6 py-4">
-                        <p className="text-slate-600">{p.email}</p>
+                        <span className="badge badge-info">{SEX_LABEL[p.sex] || p.sex}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="text-slate-600">{p.phone || '—'}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="badge badge-info">
-                          {sexLabel[p.sex] || p.sex}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1">
                           <Link
                             to={`/history/${p.id}`}
                             title="Ver historial"
-                            className="btn-ghost flex items-center gap-2"
+                            className="btn-ghost flex items-center gap-1 text-sm"
                           >
                             <Icons.FileText className="w-4 h-4" />
-                            <span className="hidden sm:inline text-sm">Historial</span>
+                            <span className="hidden sm:inline">Historial</span>
                           </Link>
+                          <button
+                            onClick={() => openEdit(p)}
+                            title="Editar datos"
+                            className="btn-ghost flex items-center gap-1 text-sm text-blue-600 hover:bg-blue-50"
+                          >
+                            <Icons.Settings className="w-4 h-4" />
+                            <span className="hidden sm:inline">Editar</span>
+                          </button>
                           <button
                             onClick={() => handleDeactivate(p.id, p.full_name)}
                             title="Desactivar"
-                            className="btn-ghost text-red-600 hover:bg-red-50"
+                            className="btn-ghost flex items-center gap-1 text-sm text-red-600 hover:bg-red-50"
                           >
                             <Icons.X className="w-4 h-4" />
-                            <span className="hidden sm:inline text-sm">Desactivar</span>
+                            <span className="hidden sm:inline">Desactivar</span>
                           </button>
                         </div>
                       </td>
@@ -166,6 +224,120 @@ export default function PatientsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Modal de edición ── */}
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card-elevated w-full max-w-lg scale-in">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Editar paciente</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">{editTarget.full_name}</p>
+                </div>
+                <button onClick={() => setEditTarget(null)} className="btn-ghost">
+                  <Icons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSave} className="space-y-4">
+                {/* Nombre completo */}
+                <div>
+                  <label className="text-label">Nombre completo</label>
+                  <input
+                    type="text"
+                    name="fullName"
+                    value={editForm.fullName}
+                    onChange={handleEditChange}
+                    className={`input-modern ${editErrors.fullName ? 'border-red-500' : ''}`}
+                    required
+                  />
+                  {editErrors.fullName && <p className="text-red-600 text-xs mt-1">{editErrors.fullName}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Teléfono */}
+                  <div>
+                    <label className="text-label">Teléfono</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={editForm.phone}
+                      onChange={handleEditChange}
+                      className={`input-modern ${editErrors.phone ? 'border-red-500' : ''}`}
+                      required
+                    />
+                    {editErrors.phone && <p className="text-red-600 text-xs mt-1">{editErrors.phone}</p>}
+                  </div>
+
+                  {/* Fecha de nacimiento */}
+                  <div>
+                    <label className="text-label">Fecha de nacimiento</label>
+                    <input
+                      type="date"
+                      name="birthDate"
+                      value={editForm.birthDate}
+                      onChange={handleEditChange}
+                      className={`input-modern ${editErrors.birthDate ? 'border-red-500' : ''}`}
+                      required
+                    />
+                    {editErrors.birthDate && <p className="text-red-600 text-xs mt-1">{editErrors.birthDate}</p>}
+                  </div>
+                </div>
+
+                {/* Dirección */}
+                <div>
+                  <label className="text-label">Dirección</label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={editForm.address}
+                    onChange={handleEditChange}
+                    className={`input-modern ${editErrors.address ? 'border-red-500' : ''}`}
+                    required
+                  />
+                  {editErrors.address && <p className="text-red-600 text-xs mt-1">{editErrors.address}</p>}
+                </div>
+
+                {/* Sexo */}
+                <div>
+                  <label className="text-label">Sexo</label>
+                  <select
+                    name="sex"
+                    value={editForm.sex}
+                    onChange={handleEditChange}
+                    className={`input-modern ${editErrors.sex ? 'border-red-500' : ''}`}
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    <option value="M">Masculino</option>
+                    <option value="F">Femenino</option>
+                    <option value="O">Otro</option>
+                  </select>
+                  {editErrors.sex && <p className="text-red-600 text-xs mt-1">{editErrors.sex}</p>}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setEditTarget(null)} className="btn-secondary flex-1">
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {saving ? (
+                      <><Icons.Spinner className="w-4 h-4 animate-spin" /> Guardando...</>
+                    ) : (
+                      <><Icons.Check className="w-4 h-4" /> Guardar cambios</>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

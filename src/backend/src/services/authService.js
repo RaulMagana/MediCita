@@ -16,9 +16,8 @@ const BCRYPT_ROUNDS = 12;
 async function registerPatient(data) {
   const { username, password, fullName, address, email, phone, birthDate, sex } = data;
 
-  // Verificar unicidad antes de insertar
-  const { rows: existU } = await db.query('SELECT id FROM users WHERE username = ?', [username]);
-  const { rows: existE } = await db.query('SELECT id FROM patients WHERE email = ?', [email]);
+  const { rows: existU } = await db.query('SELECT id FROM users WHERE username = $1', [username]);
+  const { rows: existE } = await db.query('SELECT id FROM patients WHERE email = $1', [email]);
   if (existU.length > 0 || existE.length > 0) {
     const err = new Error('El nombre de usuario o correo ya está registrado');
     err.statusCode = 409;
@@ -26,36 +25,35 @@ async function registerPatient(data) {
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const conn = await db.getClient();
+  const conn = await db.connect();
 
   try {
-    await conn.beginTransaction();
+    await conn.query('BEGIN');
 
-    // MySQL genera el UUID con DEFAULT (UUID()) en el schema
-    await conn.execute(
-      `INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'patient')`,
+    await conn.query(
+      `INSERT INTO users (username, password_hash, role) VALUES ($1, $2, 'patient')`,
       [username, passwordHash]
     );
-    const [[userRow]] = await conn.execute(
-      'SELECT id, username, role, created_at FROM users WHERE username = ?',
+    const { rows: [userRow] } = await conn.query(
+      'SELECT id, username, role, created_at FROM users WHERE username = $1',
       [username]
     );
 
-    await conn.execute(
+    await conn.query(
       `INSERT INTO patients (user_id, full_name, address, email, phone, birth_date, sex)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [userRow.id, fullName, address, email, phone, birthDate, sex]
     );
-    const [[patientRow]] = await conn.execute(
-      'SELECT id, full_name, email FROM patients WHERE user_id = ?',
+    const { rows: [patientRow] } = await conn.query(
+      'SELECT id, full_name, email FROM patients WHERE user_id = $1',
       [userRow.id]
     );
 
-    await conn.commit();
+    await conn.query('COMMIT');
     logger.info('Paciente registrado', { userId: userRow.id });
     return { user: userRow, patient: patientRow };
   } catch (err) {
-    await conn.rollback();
+    await conn.query('ROLLBACK');
     throw err;
   } finally {
     conn.release();
@@ -63,8 +61,9 @@ async function registerPatient(data) {
 }
 
 async function login({ username, password }) {
+  // 1. Cambiado el "?" por "$1" (Sintaxis de parámetros de PostgreSQL)
   const { rows } = await db.query(
-    'SELECT id, username, password_hash, role, is_active FROM users WHERE username = ?',
+    'SELECT id, username, password_hash, role, is_active FROM users WHERE username = $1',
     [username]
   );
   const user = rows[0];
@@ -79,9 +78,11 @@ async function login({ username, password }) {
   const accessToken = jwtUtil.generateAccessToken(user);
   const { token: refreshToken, hash: tokenHash } = jwtUtil.generateRefreshToken();
 
+  // 2. Cambiado los "?" por "$1, $2, $3"
+  // 3. Cambiado "DATE_ADD(NOW(), INTERVAL 7 DAY)" por la sintaxis nativa de Postgres: NOW() + INTERVAL '7 days'
   await db.query(
     `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+     VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
     [user.id, tokenHash]
   );
 
@@ -101,7 +102,7 @@ async function refreshAccessToken(refreshToken) {
             u.username, u.role, u.is_active
      FROM refresh_tokens rt
      JOIN users u ON u.id = rt.user_id
-     WHERE rt.token_hash = ?`,
+     WHERE rt.token_hash = $1`,
     [tokenHash]
   );
   const record = rows[0];
@@ -117,7 +118,7 @@ async function refreshAccessToken(refreshToken) {
 
 async function logout(refreshToken) {
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-  await db.query('UPDATE refresh_tokens SET revoked = 1 WHERE token_hash = ?', [tokenHash]);
+  await db.query('UPDATE refresh_tokens SET revoked = true WHERE token_hash = $1', [tokenHash]);
 }
 
 module.exports = { registerPatient, login, refreshAccessToken, logout };

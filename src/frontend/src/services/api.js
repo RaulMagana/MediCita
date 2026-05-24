@@ -87,10 +87,12 @@ export const patientApi = {
 };
 
 export const appointmentApi = {
-  getSlots: (params) => api.get('/appointments/slots', { params }),
-  mine:     ()       => api.get('/appointments/mine'),
-  book:     (data)   => api.post('/appointments', data),
-  cancel:   (id)     => api.delete(`/appointments/${id}`),
+  getSlots:   (params) => api.get('/appointments/slots', { params }),
+  createSlot: (data)   => api.post('/appointments/slots', data),
+  mine:       ()       => api.get('/appointments/mine'),
+  book:       (data)   => api.post('/appointments', data),
+  cancel:     (id)     => api.delete(`/appointments/${id}`),
+  reschedule: (id, data) => api.put(`/appointments/${id}`, data),
 };
 
 export const recordApi = {

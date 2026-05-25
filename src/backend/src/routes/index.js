@@ -95,6 +95,23 @@ router.get(
 // IMPORTANTE: esta ruta debe ir ANTES de /appointments/:id
 router.get('/appointments/mine', noCache, authenticate, authorize('patient'), apptCtrl.myAppointments);
 
+// ── Todas las citas (solo médico) ────────────────────────────
+router.get(
+  '/appointments/all',
+  noCache,
+  authenticate,
+  authorize('doctor'),
+  [
+    query('status').optional().isIn(['available', 'booked', 'cancelled']),
+    query('from').optional().isISO8601(),
+    query('to').optional().isISO8601(),
+  ],
+  apptCtrl.getAllAppointments
+);
+
+// ── Obtener detalles de una cita (médico o paciente dueño) ────
+router.get('/appointments/:id', authenticate, apptCtrl.getAppointment);
+
 // ── Crear slot disponible (solo médico) ──────────────────────
 router.post(
   '/appointments/slots',
@@ -158,8 +175,11 @@ router.get('/records/slot/:slotId',       authenticate, authorize('doctor'), rec
 // =============================================================
 // NOTIFICATIONS
 // =============================================================
-router.get('/notifications',        noCache, authenticate, notifCtrl.getMyNotifications);
+router.get('/notifications/unread', noCache, authenticate, notifCtrl.getMyNotifications);
+router.get('/notifications/all',    noCache, authenticate, notifCtrl.getAllNotifications);
+router.get('/notifications/count',  noCache, authenticate, notifCtrl.countUnread);
 router.patch('/notifications/read', noCache, authenticate, notifCtrl.markRead);
+router.delete('/notifications/:id', authenticate, notifCtrl.deleteNotification);
 
 // =============================================================
 // REPORTS (solo médico)

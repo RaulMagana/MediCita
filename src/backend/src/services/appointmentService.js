@@ -11,6 +11,7 @@
 const db = require('../config/database');
 const { withSlotLock } = require('../utils/slotMutex');
 const logger = require('../utils/logger');
+const emailService = require('../utils/emailService');
 
 // ─────────────────────────────────────────────────────────────
 // getSlots — accesible por doctor (todos) y paciente (solo available)
@@ -74,7 +75,7 @@ async function bookSlot({ slotId, patientId, bookedBy }) {
       await conn.query('BEGIN');
 
       const { rows: slotRows } = await conn.query(
-        `SELECT id, status, patient_id
+        `SELECT id, status, patient_id, slot_date, slot_time
          FROM appointment_slots
          WHERE id = $1
          FOR UPDATE`,
@@ -99,19 +100,28 @@ async function bookSlot({ slotId, patientId, bookedBy }) {
         [patientId, bookedBy, slotId]
       );
 
-      // Notificación al paciente si fue el médico quien agendó
-      if (bookedBy === 'doctor') {
-        const { rows: patRows } = await conn.query(
-          'SELECT user_id FROM patients WHERE id = $1',
-          [patientId]
+      // Obtener datos del paciente para notificación
+      const { rows: patRows } = await conn.query(
+        `SELECT p.user_id, p.email, p.full_name
+         FROM patients p
+         WHERE p.id = $1`,
+        [patientId]
+      );
+      const patient = patRows[0];
+
+      // Notificación en base de datos al paciente si fue el médico quien agendó
+      if (bookedBy === 'doctor' && patient) {
+        await conn.query(
+          `INSERT INTO notifications (user_id, message)
+           VALUES ($1, 'El médico ha agendado una nueva cita para usted.')`,
+          [patient.user_id]
         );
-        if (patRows[0]) {
-          await conn.query(
-            `INSERT INTO notifications (user_id, message)
-             VALUES ($1, 'El médico ha agendado una nueva cita para usted.')`,
-            [patRows[0].user_id]
-          );
-        }
+
+        // Envío de correo electrónico
+        const slotDate = slot.slot_date.toISOString().split('T')[0];
+        const slotTime = String(slot.slot_time).slice(0, 5);
+        emailService.notifyAppointmentBooked(patient.email, patient.full_name, slotDate, slotTime)
+          .catch(err => logger.error('Error al enviar correo de reserva:', err));
       }
 
       await conn.query('COMMIT');
@@ -146,7 +156,7 @@ async function cancelAppointment({ slotId, requesterId, requesterRole }) {
     await conn.query('BEGIN');
 
     const { rows: slotRows } = await conn.query(
-      `SELECT id, patient_id, status
+      `SELECT id, patient_id, status, slot_date, slot_time
        FROM appointment_slots
        WHERE id = $1
        FOR UPDATE`,
@@ -181,15 +191,24 @@ async function cancelAppointment({ slotId, requesterId, requesterRole }) {
     // Notificar al paciente si fue el médico quien canceló
     if (requesterRole === 'doctor' && slot.patient_id) {
       const { rows: patRows } = await conn.query(
-        'SELECT user_id FROM patients WHERE id = $1',
+        `SELECT p.user_id, p.email, p.full_name
+         FROM patients p
+         WHERE p.id = $1`,
         [slot.patient_id]
       );
-      if (patRows[0]) {
+      const patient = patRows[0];
+      if (patient) {
         await conn.query(
           `INSERT INTO notifications (user_id, message)
            VALUES ($1, 'Su cita médica ha sido cancelada por el médico.')`,
-          [patRows[0].user_id]
+          [patient.user_id]
         );
+
+        // Envío de correo electrónico
+        const slotDate = slot.slot_date.toISOString().split('T')[0];
+        const slotTime = String(slot.slot_time).slice(0, 5);
+        emailService.notifyAppointmentCancelled(patient.email, patient.full_name, slotDate, slotTime)
+          .catch(err => logger.error('Error al enviar correo de cancelación:', err));
       }
     }
 
@@ -237,17 +256,27 @@ async function rescheduleSlot({ slotId, date, time }) {
     // Notificar al paciente si la cita estaba reservada
     if (slot.status === 'booked' && slot.patient_id) {
       const { rows: patRows } = await conn.query(
-        'SELECT user_id FROM patients WHERE id = $1',
+        `SELECT p.user_id, p.email, p.full_name
+         FROM patients p
+         WHERE p.id = $1`,
         [slot.patient_id]
       );
-      if (patRows[0]) {
-        const newDate = date || slot.slot_date;
-        const newTime = (time || String(slot.slot_time)).slice(0, 5);
+      const patient = patRows[0];
+      if (patient) {
+        const oldDate = slot.slot_date.toISOString().split('T')[0];
+        const oldTime = String(slot.slot_time).slice(0, 5);
+        const newDate = date || oldDate;
+        const newTime = time || oldTime;
+
         await conn.query(
           `INSERT INTO notifications (user_id, message) VALUES ($1, $2)`,
-          [patRows[0].user_id,
+          [patient.user_id,
            `El médico ha reprogramado su cita para el ${newDate} a las ${newTime} hs.`]
         );
+
+        // Envío de correo electrónico
+        emailService.notifyAppointmentRescheduled(patient.email, patient.full_name, oldDate, oldTime, newDate, newTime)
+          .catch(err => logger.error('Error al enviar correo de reprogramación:', err));
       }
     }
 
@@ -287,6 +316,45 @@ async function getPatientAppointments(patientId) {
   return rows;
 }
 
+// ─────────────────────────────────────────────────────────────
+// getAppointmentById — obtener detalles de una cita específica
+// ─────────────────────────────────────────────────────────────
+async function getAppointmentById(slotId) {
+  const { rows } = await db.query(
+    `SELECT s.id, TO_CHAR(s.slot_date, 'YYYY-MM-DD') AS slot_date, s.slot_time, s.status, s.booked_by,
+            s.patient_id, p.full_name AS patient_name, p.email AS patient_email,
+            p.phone AS patient_phone, s.created_at, s.updated_at
+     FROM appointment_slots s
+     LEFT JOIN patients p ON p.id = s.patient_id
+     WHERE s.id = $1`,
+    [slotId]
+  );
+  return rows[0];
+}
+
+// ─────────────────────────────────────────────────────────────
+// getAllAppointments — obtener todas las citas (para médicos)
+// ─────────────────────────────────────────────────────────────
+async function getAllAppointments(filters = {}) {
+  let sql = `
+    SELECT s.id, TO_CHAR(s.slot_date, 'YYYY-MM-DD') AS slot_date, s.slot_time, s.status, s.booked_by,
+           s.patient_id, p.full_name AS patient_name, p.email AS patient_email,
+           p.phone AS patient_phone, s.created_at, s.updated_at
+    FROM appointment_slots s
+    LEFT JOIN patients p ON p.id = s.patient_id
+    WHERE 1=1`;
+  const params = [];
+  let i = 1;
+
+  if (filters.status) { sql += ` AND s.status = $${i++}::slot_status`; params.push(filters.status); }
+  if (filters.from)   { sql += ` AND s.slot_date >= $${i++}`; params.push(filters.from); }
+  if (filters.to)     { sql += ` AND s.slot_date <= $${i++}`; params.push(filters.to); }
+
+  sql += ' ORDER BY s.slot_date DESC, s.slot_time DESC';
+  const { rows } = await db.query(sql, params);
+  return rows;
+}
+
 module.exports = {
   getSlots,
   createSlot,
@@ -294,4 +362,6 @@ module.exports = {
   cancelAppointment,
   rescheduleSlot,
   getPatientAppointments,
+  getAppointmentById,
+  getAllAppointments,
 };

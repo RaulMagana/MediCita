@@ -4,6 +4,8 @@
  * ADICIONES respecto a la versión anterior:
  *  - createSlot: el médico crea un nuevo slot disponible
  *  - reschedule:  el médico modifica fecha/hora de un slot existente
+ *  - getAppointment: obtener detalles de una cita
+ *  - getAllAppointments: listar todas las citas (para médicos)
  */
 
 'use strict';
@@ -66,6 +68,26 @@ async function myAppointments(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// ── NUEVO: obtener detalles de una cita específica ───────────────────
+async function getAppointment(req, res, next) {
+  try {
+    const { id: slotId } = req.params;
+    const appointment = await appointmentService.getAppointmentById(slotId);
+    if (!appointment) {
+      return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+    res.json({ data: appointment });
+  } catch (err) { next(err); }
+}
+
+// ── NUEVO: listar todas las citas (solo médico) ───────────────────────
+async function getAllAppointments(req, res, next) {
+  try {
+    const appointments = await appointmentService.getAllAppointments(req.query);
+    res.json({ data: appointments });
+  } catch (err) { next(err); }
+}
+
 // ── NUEVO: el médico crea un slot de horario disponible ─────────────
 async function createSlot(req, res, next) {
   const errors = validationResult(req);
@@ -89,4 +111,4 @@ async function reschedule(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getSlots, book, cancel, myAppointments, createSlot, reschedule };
+module.exports = { getSlots, book, cancel, myAppointments, getAppointment, getAllAppointments, createSlot, reschedule };

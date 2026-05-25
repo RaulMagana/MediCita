@@ -17,10 +17,16 @@ const rateLimit    = require('express-rate-limit');
 const routes       = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const logger       = require('./utils/logger');
+const emailService = require('./utils/emailService');
 const pool = require('./config/database'); // PostgreSQL pool  // pg: verifica conectividad nativa
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// =============================================================
+// Inicializar servicio de correos
+// =============================================================
+emailService.initializeMailer();
 
 // =============================================================
 // Seguridad HTTP — Helmet agrega cabeceras de seguridad estándar

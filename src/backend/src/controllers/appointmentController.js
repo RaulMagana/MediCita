@@ -94,7 +94,8 @@ async function createSlot(req, res, next) {
   if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
   try {
     const { date, time } = req.body;
-    const slot = await appointmentService.createSlot({ date, time });
+    const doctorUserId = req.user.sub; // ID del doctor autenticado
+    const slot = await appointmentService.createSlot({ date, time, doctorUserId });
     res.status(201).json({ message: 'Slot creado exitosamente', data: slot });
   } catch (err) { next(err); }
 }

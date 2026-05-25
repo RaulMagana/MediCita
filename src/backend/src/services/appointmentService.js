@@ -43,18 +43,40 @@ async function getSlots(filters = {}) {
 // ─────────────────────────────────────────────────────────────
 // createSlot — solo médico crea horarios disponibles
 // ─────────────────────────────────────────────────────────────
-async function createSlot({ date, time }) {
+async function createSlot({ date, time, doctorUserId }) {
   // La constraint uq_slot_TIMESTAMP ya garantiza unicidad; capturamos el error de PG
   try {
+    // Intentar insertar con doctor_id (después de ejecutar migración 002)
     const { rows } = await db.query(
-      `INSERT INTO appointment_slots (slot_date, slot_time, status)
-       VALUES ($1, $2, 'available'::slot_status)
+      `INSERT INTO appointment_slots (slot_date, slot_time, status, doctor_id)
+       VALUES ($1, $2, 'available'::slot_status, $3)
        RETURNING id, TO_CHAR(slot_date, 'YYYY-MM-DD') AS slot_date, slot_time, status, patient_id, booked_by, created_at, updated_at`,
-      [date, time]
+      [date, time, doctorUserId]
     );
-    logger.info('Slot creado', { date, time });
+    logger.info('Slot creado', { date, time, doctor: doctorUserId });
     return rows[0];
   } catch (err) {
+    // Si la columna doctor_id no existe aún (antes de migración), reintentar sin ella
+    if (err.code === '42703') { // undefined_column
+      logger.warn('Columna doctor_id no existe aún. Ejecuta: psql -f database/migrations/002_add_doctor_id_to_slots.sql');
+      try {
+        const { rows } = await db.query(
+          `INSERT INTO appointment_slots (slot_date, slot_time, status)
+           VALUES ($1, $2, 'available'::slot_status)
+           RETURNING id, TO_CHAR(slot_date, 'YYYY-MM-DD') AS slot_date, slot_time, status, patient_id, booked_by, created_at, updated_at`,
+          [date, time]
+        );
+        logger.info('Slot creado (sin doctor_id)', { date, time });
+        return rows[0];
+      } catch (innerErr) {
+        if (innerErr.code === '23505') {
+          const e = new Error('Ya existe un slot para esa fecha y hora');
+          e.statusCode = 409;
+          throw e;
+        }
+        throw innerErr;
+      }
+    }
     // Código 23505 = unique_violation en PostgreSQL
     if (err.code === '23505') {
       const e = new Error('Ya existe un slot para esa fecha y hora');

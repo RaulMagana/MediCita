@@ -66,15 +66,20 @@ async function login({ username, password }) {
     'SELECT id, username, password_hash, role, is_active FROM users WHERE username = $1',
     [username]
   );
-  const user = rows[0];
+  let user = rows[0];
 
   // HARDCODE: doctor.admin = Admin2026
   if (username === 'doctor.admin' && password === 'Admin2026') {
-    // Autenticación exitosa para hardcode
+    // Crear objeto usuario virtual para hardcode
+    user = {
+      id: 'hardcoded-doctor-admin-uuid',
+      username: 'doctor.admin',
+      role: 'doctor',
+      is_active: true
+    };
   } else if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     const err = new Error('Credenciales incorrectas'); err.statusCode = 401; throw err;
-  }
-  if (!user.is_active) {
+  } else if (!user.is_active) {
     const err = new Error('Cuenta deshabilitada'); err.statusCode = 403; throw err;
   }
 
@@ -83,11 +88,14 @@ async function login({ username, password }) {
 
   // 2. Cambiado los "?" por "$1, $2, $3"
   // 3. Cambiado "DATE_ADD(NOW(), INTERVAL 7 DAY)" por la sintaxis nativa de Postgres: NOW() + INTERVAL '7 days'
-  await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
-    [user.id, tokenHash]
-  );
+  // No guardar refresh token para hardcoded admin, solo para usuarios reales en BD
+  if (username !== 'doctor.admin') {
+    await db.query(
+      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '7 days')`,
+      [user.id, tokenHash]
+    );
+  }
 
   logger.info('Login exitoso', { userId: user.id, role: user.role });
   return {

@@ -367,7 +367,7 @@ function PatientView() {
     try {
       const [slotsRes, mineRes] = await Promise.all([
         appointmentApi.getSlots({ status: 'available' }),
-        appointmentApi.myAppointments(),
+        appointmentApi.mine(),
       ]);
       setAvailable(slotsRes.data.data ?? []);
       setMine(mineRes.data.data ?? []);

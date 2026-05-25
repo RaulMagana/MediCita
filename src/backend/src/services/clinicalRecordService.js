@@ -1,7 +1,3 @@
-/**
- * services/clinicalRecordService.js — adaptado a MySQL.
- * ON DUPLICATE KEY UPDATE reemplaza al ON CONFLICT de PostgreSQL.
- */
 'use strict';
 
 const db  = require('../config/database');
@@ -11,7 +7,7 @@ async function createRecord(data) {
   const { slotId, patientId, vitalSigns, diagnosis, prescriptions, labResults, notes } = data;
 
   const { rows: check } = await db.query(
-    `SELECT id FROM appointment_slots WHERE id = ? AND patient_id = ? AND status = 'booked'`,
+    `SELECT id FROM appointment_slots WHERE id = $1 AND patient_id = $2 AND status = 'booked'`,
     [slotId, patientId]
   );
   if (check.length === 0) {
@@ -25,23 +21,22 @@ async function createRecord(data) {
   const labResultsEnc    = enc.encrypt(labResults);
   const notesEnc         = enc.encrypt(notes);
 
-  // INSERT ... ON DUPLICATE KEY UPDATE: equivalente a ON CONFLICT en PostgreSQL
   await db.query(
     `INSERT INTO clinical_records
        (slot_id, patient_id, vital_signs_enc, diagnosis_enc,
         prescriptions_enc, lab_results_enc, notes_enc)
-     VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       vital_signs_enc   = VALUES(vital_signs_enc),
-       diagnosis_enc     = VALUES(diagnosis_enc),
-       prescriptions_enc = VALUES(prescriptions_enc),
-       lab_results_enc   = VALUES(lab_results_enc),
-       notes_enc         = VALUES(notes_enc)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (slot_id) DO UPDATE SET
+       vital_signs_enc   = EXCLUDED.vital_signs_enc,
+       diagnosis_enc     = EXCLUDED.diagnosis_enc,
+       prescriptions_enc = EXCLUDED.prescriptions_enc,
+       lab_results_enc   = EXCLUDED.lab_results_enc,
+       notes_enc         = EXCLUDED.notes_enc`,
     [slotId, patientId, vitalSignsEnc, diagnosisEnc, prescriptionsEnc, labResultsEnc, notesEnc]
   );
 
   const { rows } = await db.query(
-    'SELECT id, recorded_at FROM clinical_records WHERE slot_id = ?', [slotId]
+    'SELECT id, recorded_at FROM clinical_records WHERE slot_id = $1', [slotId]
   );
   return rows[0];
 }
@@ -56,7 +51,7 @@ async function getPatientHistory(patientId) {
      FROM clinical_records cr
      JOIN appointment_slots s ON s.id = cr.slot_id
      JOIN patients p ON p.id = cr.patient_id
-     WHERE cr.patient_id = ?
+     WHERE cr.patient_id = $1
      ORDER BY s.slot_date DESC, s.slot_time DESC`,
     [patientId]
   );
@@ -69,7 +64,7 @@ async function getRecordBySlot(slotId) {
      FROM clinical_records cr
      JOIN appointment_slots s ON s.id = cr.slot_id
      JOIN patients p ON p.id = cr.patient_id
-     WHERE cr.slot_id = ?`,
+     WHERE cr.slot_id = $1`,
     [slotId]
   );
   if (rows.length === 0) return null;

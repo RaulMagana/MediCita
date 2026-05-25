@@ -1,5 +1,11 @@
 /**
  * controllers/appointmentController.js
+ *
+ * ADICIONES respecto a la versión anterior:
+ *  - createSlot: el médico crea un nuevo slot disponible
+ *  - reschedule:  el médico modifica fecha/hora de un slot existente
+ *  - getAppointment: obtener detalles de una cita
+ *  - getAllAppointments: listar todas las citas (para médicos)
  */
 
 'use strict';
@@ -24,7 +30,6 @@ async function book(req, res, next) {
 
     let patientId = bodyPatientId;
 
-    // Si es paciente, el patientId se obtiene de su propio perfil
     if (role === 'patient') {
       const patient = await patientService.getPatientByUserId(userId);
       if (!patient) return res.status(404).json({ error: 'Perfil de paciente no encontrado' });
@@ -63,4 +68,47 @@ async function myAppointments(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { getSlots, book, cancel, myAppointments };
+// ── NUEVO: obtener detalles de una cita específica ───────────────────
+async function getAppointment(req, res, next) {
+  try {
+    const { id: slotId } = req.params;
+    const appointment = await appointmentService.getAppointmentById(slotId);
+    if (!appointment) {
+      return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+    res.json({ data: appointment });
+  } catch (err) { next(err); }
+}
+
+// ── NUEVO: listar todas las citas (solo médico) ───────────────────────
+async function getAllAppointments(req, res, next) {
+  try {
+    const appointments = await appointmentService.getAllAppointments(req.query);
+    res.json({ data: appointments });
+  } catch (err) { next(err); }
+}
+
+// ── NUEVO: el médico crea un slot de horario disponible ─────────────
+async function createSlot(req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
+  try {
+    const { date, time } = req.body;
+    const slot = await appointmentService.createSlot({ date, time });
+    res.status(201).json({ message: 'Slot creado exitosamente', data: slot });
+  } catch (err) { next(err); }
+}
+
+// ── NUEVO: el médico reprograma un slot existente ────────────────────
+async function reschedule(req, res, next) {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
+  try {
+    const { id: slotId } = req.params;
+    const { date, time } = req.body;
+    const slot = await appointmentService.rescheduleSlot({ slotId, date, time });
+    res.json({ message: 'Cita reprogramada', data: slot });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getSlots, book, cancel, myAppointments, getAppointment, getAllAppointments, createSlot, reschedule };

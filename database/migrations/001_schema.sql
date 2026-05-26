@@ -1,21 +1,20 @@
 -- =============================================================
--- MediCita — Migración 001: Esquema inicial
+-- MediCita — Esquema completo (001 + 002 + 003 fusionados)
 -- Motor: PostgreSQL
 -- =============================================================
 
--- Habilitar la extensión para generar UUIDs nativos de forma segura (si no está activa)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- -------------------------------------------------------------
--- Tipos ENUM personalizados (PostgreSQL requiere crearlos antes)
+-- Tipos ENUM
 -- -------------------------------------------------------------
-CREATE TYPE user_role AS ENUM ('patient', 'doctor');
-CREATE TYPE patient_sex AS ENUM ('M', 'F', 'O');
-CREATE TYPE slot_status AS ENUM ('available', 'booked', 'cancelled');
-CREATE TYPE booking_by AS ENUM ('patient', 'doctor');
+CREATE TYPE user_role    AS ENUM ('patient', 'doctor');
+CREATE TYPE patient_sex  AS ENUM ('M', 'F', 'O');
+CREATE TYPE slot_status  AS ENUM ('available', 'booked', 'cancelled');
+CREATE TYPE booking_by   AS ENUM ('patient', 'doctor');
 
 -- -------------------------------------------------------------
--- users: credenciales de acceso. Contraseña = hash bcryptjs.
+-- users
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id            UUID         NOT NULL DEFAULT gen_random_uuid(),
@@ -30,8 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- -------------------------------------------------------------
--- refresh_tokens: tokens de renovación de sesión revocables.
--- Se guarda el hash SHA-256 del token, nunca el token en crudo.
+-- refresh_tokens
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id         UUID         NOT NULL DEFAULT gen_random_uuid(),
@@ -46,7 +44,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 
 -- -------------------------------------------------------------
--- patients: datos demográficos separados de las credenciales.
+-- patients
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS patients (
     id         UUID         NOT NULL DEFAULT gen_random_uuid(),
@@ -60,42 +58,42 @@ CREATE TABLE IF NOT EXISTS patients (
     created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT uq_patients_user UNIQUE (user_id),
+    CONSTRAINT uq_patients_user  UNIQUE (user_id),
     CONSTRAINT uq_patients_email UNIQUE (email),
-    CONSTRAINT fk_patients_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    CONSTRAINT fk_patients_user  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- -------------------------------------------------------------
--- appointment_slots: horarios de consulta.
--- El control de concurrencia de reservas usa SELECT ... FOR UPDATE.
+-- appointment_slots  (incluye doctor_id de migración 002)
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS appointment_slots (
-    id         UUID         NOT NULL DEFAULT gen_random_uuid(),
-    slot_date  DATE         NOT NULL,
-    slot_time  TIME         NOT NULL,
-    status     slot_status  NOT NULL DEFAULT 'available',
-    patient_id UUID         NULL,
-    booked_by  booking_by   NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id         UUID        NOT NULL DEFAULT gen_random_uuid(),
+    slot_date  DATE        NOT NULL,
+    slot_time  TIME        NOT NULL,
+    status     slot_status NOT NULL DEFAULT 'available',
+    patient_id UUID        NULL,
+    doctor_id  UUID        NULL,                          -- migración 002
+    booked_by  booking_by  NULL,
+    created_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT uq_slot_TIMESTAMP UNIQUE (slot_date, slot_time),
-    CONSTRAINT fk_slots_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL
+    CONSTRAINT uq_slot_timestamp  UNIQUE (slot_date, slot_time),
+    CONSTRAINT fk_slots_patient   FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
+    CONSTRAINT fk_slots_doctor    FOREIGN KEY (doctor_id)  REFERENCES users(id)    ON DELETE SET NULL
 );
 
--- Índices en PostgreSQL se crean mediante comandos externos a la tabla
-CREATE INDEX IF NOT EXISTS idx_slots_date ON appointment_slots(slot_date);
+CREATE INDEX IF NOT EXISTS idx_slots_date   ON appointment_slots(slot_date);
 CREATE INDEX IF NOT EXISTS idx_slots_patient ON appointment_slots(patient_id);
+CREATE INDEX IF NOT EXISTS idx_slots_doctor  ON appointment_slots(doctor_id);  -- migración 002
 
 -- -------------------------------------------------------------
--- clinical_records: historia clínica.
--- Campos sensibles cifrados con AES-256-CBC antes de persistir.
--- Formato almacenado: ivHex:ciphertextBase64
+-- clinical_records  (incluye doctor_id de migración 003)
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS clinical_records (
     id                UUID NOT NULL DEFAULT gen_random_uuid(),
     slot_id           UUID NOT NULL,
     patient_id        UUID NOT NULL,
+    doctor_id         UUID NULL,                          -- migración 003
     vital_signs_enc   TEXT NOT NULL,
     diagnosis_enc     TEXT,
     prescriptions_enc TEXT,
@@ -104,15 +102,17 @@ CREATE TABLE IF NOT EXISTS clinical_records (
     recorded_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT uq_records_slot UNIQUE (slot_id),
-    CONSTRAINT fk_records_slot     FOREIGN KEY (slot_id)     REFERENCES appointment_slots(id),
-    CONSTRAINT fk_records_patient FOREIGN KEY (patient_id) REFERENCES patients(id)
+    CONSTRAINT uq_records_slot    UNIQUE (slot_id),
+    CONSTRAINT fk_records_slot    FOREIGN KEY (slot_id)    REFERENCES appointment_slots(id),
+    CONSTRAINT fk_records_patient FOREIGN KEY (patient_id) REFERENCES patients(id),
+    CONSTRAINT fk_records_doctor  FOREIGN KEY (doctor_id)  REFERENCES users(id) ON DELETE SET NULL  -- migración 003
 );
 
 CREATE INDEX IF NOT EXISTS idx_records_patient ON clinical_records(patient_id);
+CREATE INDEX IF NOT EXISTS idx_records_doctor  ON clinical_records(doctor_id);  -- migración 003
 
 -- -------------------------------------------------------------
--- notifications: bandeja de avisos por usuario.
+-- notifications
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     id         UUID    NOT NULL DEFAULT gen_random_uuid(),

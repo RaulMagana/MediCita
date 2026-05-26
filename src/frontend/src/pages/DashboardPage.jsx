@@ -48,6 +48,14 @@ export default function DashboardPage() {
     }] : []),
     ...(isDoctor ? [
       {
+        label: 'Gestionar Relatorías',
+        href: '/appointments',
+        Icon: Icons.FileText,
+        color: 'from-red-500 to-red-600',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200',
+      },
+      {
         label: 'Lista de pacientes',
         href: '/patients',
         Icon: Icons.Users,

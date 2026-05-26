@@ -3,7 +3,7 @@
 const db  = require('../config/database');
 const enc = require('../utils/encryption');
 
-async function createRecord(data) {
+async function createRecord(data, doctorId) {
   const { slotId, patientId, vitalSigns, diagnosis, prescriptions, labResults, notes } = data;
 
   const { rows: check } = await db.query(
@@ -23,16 +23,17 @@ async function createRecord(data) {
 
   await db.query(
     `INSERT INTO clinical_records
-       (slot_id, patient_id, vital_signs_enc, diagnosis_enc,
+       (slot_id, patient_id, doctor_id, vital_signs_enc, diagnosis_enc,
         prescriptions_enc, lab_results_enc, notes_enc)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (slot_id) DO UPDATE SET
        vital_signs_enc   = EXCLUDED.vital_signs_enc,
        diagnosis_enc     = EXCLUDED.diagnosis_enc,
        prescriptions_enc = EXCLUDED.prescriptions_enc,
        lab_results_enc   = EXCLUDED.lab_results_enc,
-       notes_enc         = EXCLUDED.notes_enc`,
-    [slotId, patientId, vitalSignsEnc, diagnosisEnc, prescriptionsEnc, labResultsEnc, notesEnc]
+       notes_enc         = EXCLUDED.notes_enc,
+       doctor_id         = EXCLUDED.doctor_id`,
+    [slotId, patientId, doctorId, vitalSignsEnc, diagnosisEnc, prescriptionsEnc, labResultsEnc, notesEnc]
   );
 
   const { rows } = await db.query(
@@ -43,14 +44,16 @@ async function createRecord(data) {
 
 async function getPatientHistory(patientId) {
   const { rows } = await db.query(
-    `SELECT cr.id, cr.recorded_at, cr.updated_at,
+    `SELECT cr.id, cr.recorded_at, cr.updated_at, cr.doctor_id,
             cr.vital_signs_enc, cr.diagnosis_enc, cr.prescriptions_enc,
             cr.lab_results_enc, cr.notes_enc,
             s.id AS slot_id, s.slot_date, s.slot_time,
-            p.full_name, p.birth_date, p.sex, p.email, p.phone
+            p.full_name, p.birth_date, p.sex, p.email, p.phone,
+            u.username AS doctor_name
      FROM clinical_records cr
      JOIN appointment_slots s ON s.id = cr.slot_id
      JOIN patients p ON p.id = cr.patient_id
+     LEFT JOIN users u ON u.id = cr.doctor_id
      WHERE cr.patient_id = $1
      ORDER BY s.slot_date DESC, s.slot_time DESC`,
     [patientId]
@@ -60,10 +63,12 @@ async function getPatientHistory(patientId) {
 
 async function getRecordBySlot(slotId) {
   const { rows } = await db.query(
-    `SELECT cr.*, s.slot_date, s.slot_time, p.full_name, p.email
+    `SELECT cr.*, s.slot_date, s.slot_time, p.full_name, p.email, p.birth_date, p.sex,
+            u.username AS doctor_name
      FROM clinical_records cr
      JOIN appointment_slots s ON s.id = cr.slot_id
      JOIN patients p ON p.id = cr.patient_id
+     LEFT JOIN users u ON u.id = cr.doctor_id
      WHERE cr.slot_id = $1`,
     [slotId]
   );
@@ -84,6 +89,8 @@ function decryptRecord(row) {
     birthDate:     row.birth_date,
     sex:           row.sex,
     phone:         row.phone,
+    doctorId:      row.doctor_id,
+    doctorName:    row.doctor_name,
     vitalSigns:    enc.decryptObject(row.vital_signs_enc),
     diagnosis:     enc.decrypt(row.diagnosis_enc),
     prescriptions: enc.decrypt(row.prescriptions_enc),

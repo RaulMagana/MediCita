@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { format, parseISO, addDays, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import Layout from '../components/shared/Layout';
@@ -222,12 +223,22 @@ function DoctorView() {
                         <p className="text-xs text-slate-500 mt-1 truncate">{slot.patient_name}</p>
                       )}
                       {slot.status === 'booked' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleCancel(slot.id); }}
-                          className="btn-ghost text-xs w-full mt-2 text-red-600 hover:bg-red-50"
-                        >
-                          Cancelar
-                        </button>
+                        <div className="flex flex-col gap-2 mt-2">
+                          <Link
+                            to={`/records/${slot.id}`}
+                            className="btn btn-primary text-xs w-full flex items-center justify-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icons.FileText className="w-3 h-3" />
+                            Relatoría
+                          </Link>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCancel(slot.id); }}
+                            className="btn-ghost text-xs w-full text-red-600 hover:bg-red-50"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
                       )}
                     </div>
                   );

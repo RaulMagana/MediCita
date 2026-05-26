@@ -13,9 +13,10 @@ async function create(req, res, next) {
   if (!errors.isEmpty()) return res.status(422).json({ errors: errors.array() });
   try {
     const { slotId, patientId, vitalSigns, diagnosis, prescriptions, labResults, notes } = req.body;
+    const doctorId = req.user.sub; // Obtener doctor_id del token JWT
     const record = await clinicalRecordService.createRecord({
       slotId, patientId, vitalSigns, diagnosis, prescriptions, labResults, notes,
-    });
+    }, doctorId);
     res.status(201).json({ message: 'Registro clínico guardado', data: record });
   } catch (err) { next(err); }
 }

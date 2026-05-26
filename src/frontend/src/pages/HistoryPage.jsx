@@ -178,6 +178,19 @@ export default function HistoryPage() {
                 {/* Detalle expandible */}
                 {expanded === rec.id && (
                   <div className="border-t border-slate-200 px-6 py-5 space-y-6 bg-slate-50">
+                    {/* Información del médico */}
+                    {rec.doctorName && (
+                      <div className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-200 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-bold">
+                          {rec.doctorName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs text-blue-600 font-medium">Registrado por</p>
+                          <p className="text-sm font-semibold text-blue-900">{rec.doctorName}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Signos vitales */}
                     {rec.vitalSigns && (
                       <div>

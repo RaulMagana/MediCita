@@ -72,7 +72,7 @@ async function login({ username, password }) {
   if (username === 'doctor.admin' && password === 'Admin2026') {
     // Crear objeto usuario virtual para hardcode
     user = {
-      id: 'hardcoded-doctor-admin-uuid',
+      id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       username: 'doctor.admin',
       role: 'doctor',
       is_active: true

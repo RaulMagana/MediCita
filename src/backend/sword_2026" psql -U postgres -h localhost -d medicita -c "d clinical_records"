@@ -1,0 +1,15 @@
+    column_name    |          data_type          
+-------------------+-----------------------------
+ id                | uuid
+ slot_id           | uuid
+ patient_id        | uuid
+ vital_signs_enc   | text
+ diagnosis_enc     | text
+ prescriptions_enc | text
+ lab_results_enc   | text
+ notes_enc         | text
+ recorded_at       | timestamp without time zone
+ updated_at        | timestamp without time zone
+ doctor_id         | uuid
+(11 rows)
+

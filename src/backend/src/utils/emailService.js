@@ -222,6 +222,54 @@ MediCita - Centro Médico
 }
 
 /**
+ * Notifica al médico cuando un paciente reserva una cita
+ */
+async function notifyDoctorPatientBooked(doctorEmail, doctorName, patientName, slotDate, slotTime) {
+  const subject = '📋 Paciente reservó una cita - MediCita';
+  const text = `
+Hola ${doctorName},
+
+El paciente ${patientName} ha reservado una cita con usted.
+
+Fecha: ${slotDate}
+Hora: ${slotTime}
+
+Por favor, prepárese para la cita en el horario especificado.
+
+Saludos,
+MediCita - Centro Médico
+  `.trim();
+
+  const html = `
+<html>
+  <body style="font-family: Arial, sans-serif; background-color: #f5f5f5; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h2 style="color: #27ae60; border-bottom: 3px solid #27ae60; padding-bottom: 10px;">📋 Nueva Reserva de Paciente</h2>
+      
+      <p>Hola <strong>${doctorName}</strong>,</p>
+      
+      <p>El paciente <strong>${patientName}</strong> ha reservado una cita con usted:</p>
+      
+      <div style="background-color: #d5f4e6; padding: 15px; border-left: 4px solid #27ae60; margin: 20px 0;">
+        <p><strong>👤 Paciente:</strong> ${patientName}</p>
+        <p><strong>📅 Fecha:</strong> ${slotDate}</p>
+        <p><strong>🕐 Hora:</strong> ${slotTime}</p>
+      </div>
+      
+      <p>Por favor, prepárese para la cita en el horario especificado.</p>
+      
+      <p style="margin-top: 30px; color: #7f8c8d; font-size: 12px;">
+        Este es un correo automático del sistema MediCita. Por favor no responda a este correo.
+      </p>
+    </div>
+  </body>
+</html>
+  `.trim();
+
+  return sendEmail(doctorEmail, subject, text, html);
+}
+
+/**
  * Envía notificación de prueba (para testing)
  */
 async function sendTestEmail(to = 'preyvictoria@gmail.com') {
@@ -236,5 +284,6 @@ module.exports = {
   notifyAppointmentBooked,
   notifyAppointmentCancelled,
   notifyAppointmentRescheduled,
+  notifyDoctorPatientBooked,
   sendTestEmail,
 };

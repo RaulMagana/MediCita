@@ -146,6 +146,22 @@ async function bookSlot({ slotId, patientId, bookedBy }) {
           .catch(err => logger.error('Error al enviar correo de reserva:', err));
       }
 
+      // Notificación al doctor si el paciente hizo la reserva
+      if (bookedBy === 'patient' && patient) {
+        const slotDate = slot.slot_date.toISOString().split('T')[0];
+        const slotTime = String(slot.slot_time).slice(0, 5);
+        const doctorEmail = process.env.ADMIN_EMAIL || 'preyvictoria@gmail.com';
+        const doctorName = process.env.ADMIN_NAME || 'Doctor';
+        emailService.notifyDoctorPatientBooked(
+          doctorEmail,
+          doctorName,
+          patient.full_name,
+          slotDate,
+          slotTime
+        )
+          .catch(err => logger.error('Error al enviar correo de reserva al doctor:', err));
+      }
+
       await conn.query('COMMIT');
       logger.info('Slot reservado', { slotId, patientId, bookedBy });
 

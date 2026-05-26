@@ -17,7 +17,6 @@ out/
 
 # Environment variables
 .env
-.gitignore
 
 # IDEs
 .vscode/

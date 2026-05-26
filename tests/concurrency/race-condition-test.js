@@ -157,7 +157,7 @@ async function run() {
 
     // 2. Autenticar como médico
     console.log('\n[ PASO 2 ] Autenticación del médico');
-    const doctorToken = await step_login('doctor.admin', 'Admin2026!');
+    const doctorToken = await step_login('doctor.admin', 'Admin2026');
     console.log('  ✓ Token de médico obtenido');
     results.steps.push({ step: 'doctor_login', ok: true });
 

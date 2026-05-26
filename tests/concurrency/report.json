@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-05-26T21:23:48.868Z",
+  "concurrent": 25,
+  "baseUrl": "http://localhost:3000/api/v1",
+  "steps": [],
+  "bookAttempts": [],
+  "summary": {},
+  "error": "Servidor no disponible (429)"
+}

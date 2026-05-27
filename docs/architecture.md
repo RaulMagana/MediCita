@@ -1,4 +1,4 @@
-# 🏗️ Arquitectura del Sistema de Citas Médicas
+# Arquitectura del Sistema de Citas Médicas
 
 ## Diagrama de Flujo General
 

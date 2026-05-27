@@ -38,13 +38,16 @@ Proyecto Final — Sistemas Distribuidos · UADY FMAT 2026
 
 | Capa | Tecnología | Justificación |
 |------|-----------|---------------|
-| Frontend | React 18 + Vite + TailwindCSS | SPA moderna, hot-reload, tipado por PropTypes |
+| Frontend | React 18 + Vite + TailwindCSS | SPA moderna, hot-reload, componentes funcionales |
 | Backend | Node.js 20 + Express 4 | Ecosistema maduro, middleware composable |
-| BD | MySQL 8+ / MariaDB 10.6+ | ACID con InnoDB, FOR UPDATE para concurrencia |
-| Auth | JWT (access 15min + refresh 7d) | Sin estado en servidor, escalable |
-| Cifrado | AES-256-CBC (Node crypto) | Datos clínicos sensibles en reposo |
-| Contraseñas | bcrypt (cost=12) | Resistente a fuerza bruta |
-| Concurrencia | async-mutex + SELECT FOR UPDATE | Exclusión mutua a nivel aplicación y BD |
+| BD | PostgreSQL 16 | ACID, UUID, ENUM types, SELECT FOR UPDATE, row-level locking |
+| Auth | JWT (access 15min + refresh 7d) | Sin estado en servidor, escalable, tokens revocables |
+| Cifrado | AES-256-CBC (Node crypto) | Datos clínicos sensibles en reposo (vital_signs, diagnosis, prescriptions, lab_results, notes) |
+| Contraseñas | bcrypt (cost=12) | Resistente a fuerza bruta (~100ms por validación) |
+| Concurrencia | async-mutex + SELECT FOR UPDATE | Exclusión mutua dual: in-memory (Node) + DB (PostgreSQL) |
+| Email | nodemailer + SMTP Gmail (TLS 587) | Notificaciones síncronas en BD, envío asíncrono |
+| Logging | Winston (error, warn, info, debug) | Logging estructurado a archivos + consola |
+| Seguridad | Helmet + express-validator + Rate Limit | Headers de seguridad, validación de entrada, throttling |
 | Gestor de paquetes | pnpm | Aislamiento estricto de dependencias, evita phantom deps |
 
 ## Decisiones de diseño

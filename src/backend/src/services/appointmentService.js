@@ -226,28 +226,49 @@ async function cancelAppointment({ slotId, requesterId, requesterRole }) {
       [slotId]
     );
 
-    // Notificar al paciente si fue el médico quien canceló
-    if (requesterRole === 'doctor' && slot.patient_id) {
-      const { rows: patRows } = await conn.query(
-        `SELECT p.user_id, p.email, p.full_name
-         FROM patients p
-         WHERE p.id = $1`,
-        [slot.patient_id]
-      );
-      const patient = patRows[0];
-      if (patient) {
-        await conn.query(
-          `INSERT INTO notifications (user_id, message)
-           VALUES ($1, 'Su cita médica ha sido cancelada por el médico.')`,
-          [patient.user_id]
-        );
+    const slotDate = slot.slot_date.toISOString().split('T')[0];
+    const slotTime = String(slot.slot_time).slice(0, 5);
 
-        // Envío de correo electrónico
-        const slotDate = slot.slot_date.toISOString().split('T')[0];
-        const slotTime = String(slot.slot_time).slice(0, 5);
-        emailService.notifyAppointmentCancelled(patient.email, patient.full_name, slotDate, slotTime)
-          .catch(err => logger.error('Error al enviar correo de cancelación:', err));
-      }
+    // Obtener datos del paciente para notificaciones
+    const { rows: patRows } = await conn.query(
+      `SELECT p.user_id, p.email, p.full_name
+       FROM patients p
+       WHERE p.id = $1`,
+      [slot.patient_id]
+    );
+    const patient = patRows[0];
+
+    // Notificar al paciente si fue el médico quien canceló
+    if (requesterRole === 'doctor' && patient) {
+      await conn.query(
+        `INSERT INTO notifications (user_id, message)
+         VALUES ($1, 'Su cita médica ha sido cancelada por el médico.')`,
+        [patient.user_id]
+      );
+
+      // Envío de correo electrónico
+      emailService.notifyAppointmentCancelled(patient.email, patient.full_name, slotDate, slotTime)
+        .catch(err => logger.error('Error al enviar correo de cancelación:', err));
+    }
+
+    // Notificar al paciente Y al doctor si fue el paciente quien canceló
+    if (requesterRole === 'patient' && patient) {
+      // Notificación en base de datos al paciente
+      await conn.query(
+        `INSERT INTO notifications (user_id, message)
+         VALUES ($1, 'Has cancelado exitosamente tu cita médica.')`,
+        [patient.user_id]
+      );
+
+      // Envío de correo electrónico de confirmación al paciente
+      emailService.notifyAppointmentCancelled(patient.email, patient.full_name, slotDate, slotTime)
+        .catch(err => logger.error('Error al enviar correo de cancelación al paciente:', err));
+
+      // Notificar al doctor que el paciente canceló
+      const doctorEmail = process.env.ADMIN_EMAIL || 'preyvictoria@gmail.com';
+      const doctorName = process.env.ADMIN_NAME || 'Doctor';
+      emailService.notifyDoctorPatientCancelled(doctorEmail, doctorName, patient.full_name, slotDate, slotTime)
+        .catch(err => logger.error('Error al enviar correo de cancelación al doctor:', err));
     }
 
     await conn.query('COMMIT');

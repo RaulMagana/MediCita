@@ -85,8 +85,8 @@ async function start() {
     await pool.query('SELECT 1');  // pg: verifica conectividad nativa  // mysql2: misma sintaxis
     logger.info('Conexión a PostgreSQL establecida');
 
-    app.listen(PORT, () => {
-      logger.info(`Servidor MediCita corriendo en http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Servidor MediCita corriendo en http://0.0.0.0:${PORT}`);
       logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
     });
   } catch (err) {

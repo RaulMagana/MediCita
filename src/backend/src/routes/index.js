@@ -169,6 +169,13 @@ router.post(
   recordCtrl.create
 );
 
+router.put(
+  '/records/:recordId',
+  authenticate,
+  authorize('doctor'),
+  recordCtrl.update
+);
+
 router.get('/records/patient/:patientId', authenticate, recordCtrl.getHistory);
 router.get('/records/slot/:slotId',       authenticate, authorize('doctor'), recordCtrl.getBySlot);
 

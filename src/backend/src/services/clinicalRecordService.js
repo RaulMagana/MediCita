@@ -99,4 +99,41 @@ function decryptRecord(row) {
   };
 }
 
-module.exports = { createRecord, getPatientHistory, getRecordBySlot };
+async function updateRecord(recordId, data, doctorId) {
+  const { vitalSigns, diagnosis, prescriptions, labResults, notes } = data;
+
+  // Verificar que el registro existe y pertenece al doctor
+  const { rows: check } = await db.query(
+    `SELECT id FROM clinical_records WHERE id = $1 AND doctor_id = $2`,
+    [recordId, doctorId]
+  );
+  if (check.length === 0) {
+    const err = new Error('Registro no encontrado o no autorizado');
+    err.statusCode = 403; throw err;
+  }
+
+  const vitalSignsEnc    = vitalSigns ? enc.encryptObject(vitalSigns) : null;
+  const diagnosisEnc     = diagnosis ? enc.encrypt(diagnosis) : null;
+  const prescriptionsEnc = prescriptions ? enc.encrypt(prescriptions) : null;
+  const labResultsEnc    = labResults ? enc.encrypt(labResults) : null;
+  const notesEnc         = notes ? enc.encrypt(notes) : null;
+
+  await db.query(
+    `UPDATE clinical_records SET
+       vital_signs_enc   = COALESCE($2, vital_signs_enc),
+       diagnosis_enc     = COALESCE($3, diagnosis_enc),
+       prescriptions_enc = COALESCE($4, prescriptions_enc),
+       lab_results_enc   = COALESCE($5, lab_results_enc),
+       notes_enc         = COALESCE($6, notes_enc),
+       updated_at        = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [recordId, vitalSignsEnc, diagnosisEnc, prescriptionsEnc, labResultsEnc, notesEnc]
+  );
+
+  const { rows } = await db.query(
+    'SELECT id, updated_at FROM clinical_records WHERE id = $1', [recordId]
+  );
+  return rows[0];
+}
+
+module.exports = { createRecord, updateRecord, getPatientHistory, getRecordBySlot };

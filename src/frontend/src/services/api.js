@@ -97,6 +97,7 @@ export const appointmentApi = {
 
 export const recordApi = {
   create:         (data)      => api.post('/records', data),
+  update:         (recordId, data) => api.put(`/records/${recordId}`, data),
   getByPatient:   (patientId) => api.get(`/records/patient/${patientId}`),
   getBySlot:      (slotId)    => api.get(`/records/slot/${slotId}`),
 };

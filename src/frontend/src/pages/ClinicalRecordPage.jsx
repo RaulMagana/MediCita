@@ -39,7 +39,7 @@ export default function ClinicalRecordPage() {
       .then(({ data }) => {
         const r = data.data;
         setExisting(r);
-        setPatientId(r.patient_id || '');
+        setPatientId(r.patientId || r.patient_id || '');
         if (r.vitalSigns) setVitals(r.vitalSigns);
         setDiagnosis(r.diagnosis     || '');
         setPrescriptions(r.prescriptions || '');
@@ -68,9 +68,7 @@ export default function ClinicalRecordPage() {
     setSaving(true);
     setMsg('');
     try {
-      await recordApi.create({
-        slotId,
-        patientId,
+      const payload = {
         vitalSigns: {
           temperature: Number(vitals.temperature),
           weight:      Number(vitals.weight),
@@ -82,11 +80,24 @@ export default function ClinicalRecordPage() {
         prescriptions,
         labResults,
         notes,
-      });
+      };
+
+      if (existing) {
+        // Actualizar registro existente
+        await recordApi.update(existing.id, payload);
+      } else {
+        // Crear nuevo registro
+        await recordApi.create({
+          slotId,
+          patientId,
+          ...payload,
+        });
+      }
       setMsg('Registro guardado correctamente');
       setTimeout(() => navigate(-1), 1500);
     } catch (err) {
-      setMsg((err.response?.data?.error || 'Error al guardar').replace(/^Error: /, ''));
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Error al guardar';
+      setMsg(errorMsg.replace(/^Error: /, ''));
     } finally {
       setSaving(false);
     }

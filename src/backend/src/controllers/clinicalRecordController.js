@@ -21,6 +21,19 @@ async function create(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function update(req, res, next) {
+  try {
+    const { recordId } = req.params;
+    const { vitalSigns, diagnosis, prescriptions, labResults, notes } = req.body;
+    const doctorId = req.user.sub;
+    
+    const record = await clinicalRecordService.updateRecord(recordId, {
+      vitalSigns, diagnosis, prescriptions, labResults, notes,
+    }, doctorId);
+    res.json({ message: 'Registro clínico actualizado', data: record });
+  } catch (err) { next(err); }
+}
+
 async function getHistory(req, res, next) {
   try {
     const { patientId } = req.params;
@@ -46,4 +59,4 @@ async function getBySlot(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { create, getHistory, getBySlot };
+module.exports = { create, update, getHistory, getBySlot };
